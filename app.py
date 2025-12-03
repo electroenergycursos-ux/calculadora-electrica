@@ -54,7 +54,7 @@ db_tuberias = {
     "2\"":   {"PVC40": 2186, "EMT": 2275, "ARG": 2228},
 }
 
-# Inicialización de variables para el PDF (Asegura que siempre existan)
+# Inicialización de variables para el PDF
 carga_va, voltaje, sistema, calibre_sel, num_conductores, amp_real, i_diseno = 1260.0, 120, "Monofásico (1F)", "12 AWG", 3, 22.0, 13.12
 percent_drop = 1.83
 v_drop = 2.2
@@ -62,7 +62,7 @@ tubo_sel, porcentaje, limite = "3/4\"", 40.0, 40
 tubo_recomendado = "1\""
 area_kcmil_min = 6.53 
 calibre_min_cc = "12 AWG"
-K_FINAL = 2.0 # Inicialización del factor K
+K_FINAL = 5.0 # Inicialización del factor K con el valor Monofásico de la Memoria
 
 # --- PESTAÑAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🛡️ 1. Ampacidad", "📉 2. Caída de Tensión", "pipe 3. Canalizaciones", "💥 4. Cortocircuito"])
@@ -119,7 +119,7 @@ with tab1:
     else:
         st.markdown(f'<div class="fail-box-final">❌ <b>INSUFICIENTE:</b> El calibre {calibre_sel} no es apto para la carga.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 2: CAÍDA DE TENSIÓN (Factor K Personalizado) ---
+# --- MÓDULO 2: CAÍDA DE TENSIÓN (Factor K Fijo de Memoria) ---
 with tab2:
     st.markdown('<p class="header-style">Cálculo de Regulación (CEN 210.19)</p>', unsafe_allow_html=True)
     col_v1, col_v2 = st.columns(2)
@@ -130,17 +130,16 @@ with tab2:
         calibre_v = st.selectbox("Calibre verificado", list(db_cables.keys()), index=1, key="v_cal")
     
     with col_v2:
-        st.subheader("Factor K y Datos de Cálculo")
-        # Selector K
-        k_mode = st.radio("Factor K del Sistema", ["Usar K Estándar", "Usar K Personalizado (Excel)"], index=0, key="k_mode")
+        st.subheader("Factor K de la Metodología")
         
-        if k_mode == "Usar K Estándar":
-            fases_v = st.radio("Fases", ["1F (K=2)", "3F (K=1.732)"], index=0 if "Monofásico" in sistema else 1, key="fases_v")
-            K_FINAL = 2 if "1F" in fases_v else 1.732
-        else:
-            K_FINAL = st.number_input("Valor K de Conversión (Ej: 5.0)", value=5.0, step=0.1, key="k_custom")
-            st.warning(f"Usando K={K_FINAL:.1f} (Valor personalizado de su Excel).")
-
+        # 🟢 Selector K (USANDO LOS VALORES CONFIRMADOS)
+        k_mode_key = st.selectbox("Sistema de Fases y Factor K (Memoria)", 
+                                  ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
+                                  index=0 if "Monofásico" in sistema else 1,
+                                  key="k_mode_final")
+        
+        K_FINAL = 5.0 if "Monofásico" in k_mode_key else 10.0
+        
         fp_v = st.slider("Factor Potencia", 0.8, 1.0, fp, key="fp_v")
         voltaje_base = st.number_input("Voltaje Base", value=voltaje, key="v_base")
 
@@ -260,7 +259,7 @@ with tab4:
         st.markdown(f'<div class="fail-box-final">❌ <b>FALLA TÉRMICA:</b> El calibre {calibre_cc} es menor al área mínima requerida. Selecciona {calibre_min_cc} o mayor.</div>', unsafe_allow_html=True)
 
 
-# --- 5. GENERADOR PDF (Actualizado para incluir Factor K) ---
+# --- 5. GENERADOR PDF ---
 def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min, k_factor_utilizado):
     class PDF(FPDF):
         def header(self):
