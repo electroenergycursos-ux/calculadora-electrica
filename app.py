@@ -75,7 +75,7 @@ def create_pdf(carga, voltaje, calibre, amp_real, i_diseno, v_drop, v_percent, t
     return pdf.output(dest='S').encode('latin-1')
 
 # --- BOTÓN DE DESCARGA EN LA BARRA LATERAL ---
-st.sidebar.divider()
+st.sidebar.markdown("---")
 st.sidebar.header("📄 Reportes")
 
 # Verificamos que las variables existan (por si el usuario acaba de abrir la app)
