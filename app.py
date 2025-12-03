@@ -8,7 +8,6 @@ st.set_page_config(page_title="CEN-2004: Protocolo de Dimensionamiento Eléctric
 
 st.markdown("""
 <style>
-    /* Estilo para los títulos de los módulos en el dashboard */
     .header-style { font-size:18px; font-weight:bold; color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 5px; margin-bottom: 15px;}
     
     /* Cajas de Módulos (Estilo de la imagen) */
@@ -21,7 +20,6 @@ st.markdown("""
     .recommendation-box { padding: 15px; border-radius: 8px; background-color: #f0f8ff; color: #004E8C; border: 1px solid #b3d9ff; font-weight: bold; }
     h1 { color: #1e40af; } 
     
-    /* Ajuste para las métricas para que se vean mejor */
     [data-testid="stMetricValue"] { font-size: 20px; }
 </style>
 """, unsafe_allow_html=True)
@@ -29,7 +27,7 @@ st.markdown("""
 st.title("⚡ CEN-2004: Protocolo de Dimensionamiento Eléctrico")
 st.caption("Herramienta de Dimensionamiento conforme al Código Eléctrico Nacional (CEN-2004)")
 
-# --- 2. BASES DE DATOS DE INGENIERÍA (Sin cambios) ---
+# --- 2. BASES DE DATOS DE INGENIERÍA ---
 db_cables = {
     "14 AWG":      {"area": 2.08,  "diam": 2.80, "R": 10.17, "X": 0.190, "amp": 20, "kcmil": 4.107},
     "12 AWG":      {"area": 3.31,  "diam": 3.86, "R": 6.56,  "X": 0.177, "amp": 25, "kcmil": 6.530},
@@ -56,7 +54,7 @@ db_tuberias = {
     "1 1/2\"": {"PVC40": 1338, "EMT": 1391, "ARG": 1362}, "2\"":   {"PVC40": 2186, "EMT": 2275, "ARG": 2228},
 }
 
-# Inicialización de variables para el PDF (Usando valores del caso C1)
+# Inicialización de variables
 carga_va, voltaje, sistema, calibre_sel, num_conductores, amp_real, i_diseno = 1260.0, 120, "Monofásico (1F)", "12 AWG", 3, 22.0, 13.12
 percent_drop = 1.83
 v_drop = 2.2
@@ -87,24 +85,23 @@ col3, col4 = st.columns(2)
 # =========================================================
 with col1:
     st.markdown('<div class="module-box">', unsafe_allow_html=True)
-    st.markdown('<p class="header-style">1. Capacidad y Protección (CEN 310.16)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">1. Capacidad y Protección</p>', unsafe_allow_html=True)
     
-    col1a, col1b = st.columns(2)
-    with col1a:
-        calibre_sel = st.selectbox("Calibre a Evaluar", list(db_cables.keys()), index=1, key="c_sel")
-    with col1b:
-        num_conductores = st.number_input("N° Conductores Activos", value=3, key="n_cond")
+    st.caption("Configuración del Circuito")
+    calibre_sel = st.selectbox("Calibre a Evaluar", list(db_cables.keys()), index=1, key="c_sel")
+    num_conductores = st.number_input("N° Conductores Activos", value=3, key="n_cond")
 
+    st.caption("Factores Ambientales (CEN 310.15)")
     temp_factor_key = st.selectbox(
         "Rango de Temperatura Ambiente",
         list(db_temp_factors.keys()),
-        index=3, # Por defecto 36-40°C
+        index=3, 
         key="temp_factor_key"
     )
     
     # CÁLCULOS
-    fp = 0.95 if "Iluminación" in locals().get('tipo_carga', "Tomacorrientes (FP 0.90)") else 0.90 
     fc_temp = db_temp_factors[temp_factor_key]
+    fp = 0.90 # Se asume FP 0.90 de Tomacorriente
     denom = voltaje if "Monofásico" in sistema else (voltaje * 1.732)
     corriente_carga = carga_va / denom
     
@@ -124,7 +121,7 @@ with col1:
     res_a2.metric("Ampacidad Corregida", f"{amp_real:.2f} A")
 
     if amp_real >= i_diseno:
-        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable {calibre_sel} es apto. (Protección sugerida: {breaker_ideal}A)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable es apto. (Protección sugerida: {breaker_ideal}A)</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="fail-box-final">❌ FALLA: El calibre es insuficiente.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
@@ -136,15 +133,15 @@ with col2:
     st.markdown('<div class="module-box">', unsafe_allow_html=True)
     st.markdown('<p class="header-style">2. Caída de Tensión (CEN 210.19)</p>', unsafe_allow_html=True)
     
-    st.subheader("Parámetros de Entrada")
     col2a, col2b = st.columns(2)
     with col2a:
         distancia = st.number_input("Longitud (metros)", value=20.0, key="dist")
     with col2b:
         corriente_calc = st.number_input("Corriente (A)", value=corriente_carga, key="i_calc") 
     
-    # 🟢 Selector K (USANDO LOS VALORES CONFIRMADOS)
-    k_mode_key = st.selectbox("Factor K de la Metodología", 
+    # Selector K (USANDO LOS VALORES CONFIRMADOS K=5 y K=10)
+    st.caption("Factor K de su Metodología de Cálculo")
+    k_mode_key = st.selectbox("Sistema de Fases y Factor K", 
                               ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
                               index=0 if "Monofásico" in sistema else 1,
                               key="k_mode_final")
@@ -187,7 +184,7 @@ with col3:
     calibre_t = st.selectbox("Calibre Conductores", list(db_cables.keys()), index=1, key="t_cal")
     n_hilos = st.number_input("Total Hilos (Fases+Neutro+Tierra)", 1, 30, 4, key="n_hilos")
 
-    # 🟢 LÓGICA DE OVERRIDE
+    # 🟢 LÓGICA DE OVERRIDE DE ÁREA
     area_default = db_cables[calibre_t]["area"]
     override_area = st.checkbox("Usar Área Unitaria Personalizada", key="override_area")
     
@@ -196,7 +193,7 @@ with col3:
             f"Área Unitaria Custom (mm²) para {calibre_t}", 
             value=area_default, 
             key="custom_area_uni",
-            help="Usar si su tabla tiene un valor diferente al estándar (ej. 8.78 mm² para 12 AWG)."
+            help="Introduzca el valor de mm² que usa en su Memoria de Cálculo."
         )
     else:
         area_uni = area_default
@@ -277,7 +274,7 @@ with col4:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
-# 5. GENERADOR PDF (En la Barra Lateral)
+# 5. GENERADOR PDF (En la Barra Lateral - Botón de Imprimir)
 # =========================================================
 def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min, k_factor_utilizado):
     # Lógica PDF
@@ -304,7 +301,7 @@ def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec
     pdf.cell(0, 7, f"1. Ampacidad: {amp:.2f} A (Req: {i_dis:.2f} A) -> {res_amp}", ln=True)
     
     res_v = "CUMPLE" if v_pct <= 3 else "FALLA"
-    pdf.cell(0, 7, f"2. Caida Tension: {v_dp:.2f} V ({v_pct:.2f}%) -> {res_v}", ln=True)
+    pdf.cell(0, 7, f"2. Caida Tension: {v_drop:.2f} V ({v_pct:.2f}%) -> {res_v}", ln=True)
     
     res_t = "CUMPLE" if porc_tub <= 40 else "FALLA"
     pdf.cell(0, 7, f"3. Tuberia ({tub}): Ocupacion {porc_tub:.2f}% (MINIMO REQ: {tubo_rec}) -> {res_t}", ln=True)
