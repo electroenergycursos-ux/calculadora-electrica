@@ -3,7 +3,7 @@ import numpy as np
 from fpdf import FPDF
 import base64
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="CEN-2004: Protocolo de Dimensionamiento Eléctrico", layout="wide", page_icon="⚡")
 
 st.markdown("""
@@ -20,7 +20,7 @@ st.markdown("""
 st.title("⚡ CEN-2004: Protocolo de Dimensionamiento Eléctrico")
 st.caption("Herramienta de Dimensionamiento conforme al Código Eléctrico Nacional (CEN-2004)")
 
-# --- 2. BASE DE DATOS DE INGENIERÍA (Valores según Tablas CEN) ---
+# --- 2. BASES DE DATOS DE INGENIERÍA ---
 db_cables = {
     "14 AWG":      {"area": 2.08,  "diam": 2.80, "R": 10.17, "X": 0.190, "amp": 20, "kcmil": 4.107},
     "12 AWG":      {"area": 3.31,  "diam": 3.86, "R": 6.56,  "X": 0.177, "amp": 25, "kcmil": 6.530},
@@ -36,7 +36,6 @@ db_cables = {
 
 db_breakers = [15, 20, 25, 30, 40, 50, 60, 70, 100, 125, 150, 175, 200, 225, 250]
 
-# --- NUEVA BASE DE DATOS: FACTORES DE CORRECCIÓN POR TEMPERATURA (75°C) ---
 db_temp_factors = {
     "21-25 °C (1.04)": 1.04,
     "26-30 °C (Base 1.00)": 1.00,
@@ -55,7 +54,7 @@ db_tuberias = {
     "2\"":   {"PVC40": 2186, "EMT": 2275, "ARG": 2228},
 }
 
-# Inicialización de variables para el PDF
+# Inicialización de variables para el PDF (Asegura que siempre existan)
 carga_va, voltaje, sistema, calibre_sel, num_conductores, amp_real, i_diseno = 1260.0, 120, "Monofásico (1F)", "12 AWG", 3, 22.0, 13.12
 percent_drop = 1.83
 v_drop = 2.2
@@ -63,11 +62,12 @@ tubo_sel, porcentaje, limite = "3/4\"", 40.0, 40
 tubo_recomendado = "1\""
 area_kcmil_min = 6.53 
 calibre_min_cc = "12 AWG"
+K_FINAL = 2.0 # Inicialización del factor K
 
 # --- PESTAÑAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🛡️ 1. Ampacidad", "📉 2. Caída de Tensión", "pipe 3. Canalizaciones", "💥 4. Cortocircuito"])
 
-# --- MÓDULO 1: AMPACIDAD (CÓDIGO MODIFICADO) ---
+# --- MÓDULO 1: AMPACIDAD ---
 with tab1:
     st.markdown('<p class="header-style">Selección por Capacidad de Corriente (CEN 310.16)</p>', unsafe_allow_html=True)
     col_in1, col_in2 = st.columns(2)
@@ -81,11 +81,11 @@ with tab1:
     with col_in2:
         st.subheader("Factores de Corrección")
         
-        # 🟢 NUEVA SELECCIÓN DINÁMICA DE TEMPERATURA 
         temp_factor_key = st.selectbox(
             "Rango de Temperatura Ambiente (CEN 310.15)",
             list(db_temp_factors.keys()),
-            index=3 # Por defecto 36-40°C (0.91)
+            index=3, # Por defecto 36-40°C
+            key="temp_factor_key"
         )
         fc_temp = db_temp_factors[temp_factor_key]
         st.write(f"🔹 Factor de Corrección por Temperatura: **{fc_temp}**")
@@ -119,7 +119,7 @@ with tab1:
     else:
         st.markdown(f'<div class="fail-box-final">❌ <b>INSUFICIENTE:</b> El calibre {calibre_sel} no es apto para la carga.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 2: CAÍDA DE TENSIÓN (Mismo Código) ---
+# --- MÓDULO 2: CAÍDA DE TENSIÓN (Factor K Personalizado) ---
 with tab2:
     st.markdown('<p class="header-style">Cálculo de Regulación (CEN 210.19)</p>', unsafe_allow_html=True)
     col_v1, col_v2 = st.columns(2)
@@ -130,24 +130,34 @@ with tab2:
         calibre_v = st.selectbox("Calibre verificado", list(db_cables.keys()), index=1, key="v_cal")
     
     with col_v2:
-        st.subheader("Datos de Cálculo")
+        st.subheader("Factor K y Datos de Cálculo")
+        # Selector K
+        k_mode = st.radio("Factor K del Sistema", ["Usar K Estándar", "Usar K Personalizado (Excel)"], index=0, key="k_mode")
+        
+        if k_mode == "Usar K Estándar":
+            fases_v = st.radio("Fases", ["1F (K=2)", "3F (K=1.732)"], index=0 if "Monofásico" in sistema else 1, key="fases_v")
+            K_FINAL = 2 if "1F" in fases_v else 1.732
+        else:
+            K_FINAL = st.number_input("Valor K de Conversión (Ej: 5.0)", value=5.0, step=0.1, key="k_custom")
+            st.warning(f"Usando K={K_FINAL:.1f} (Valor personalizado de su Excel).")
+
         fp_v = st.slider("Factor Potencia", 0.8, 1.0, fp, key="fp_v")
         voltaje_base = st.number_input("Voltaje Base", value=voltaje, key="v_base")
-        fases_v = st.radio("Fases", ["1F (K=2)", "3F (K=1.732)"], index=0 if "Monofásico" in sistema else 1, key="fases_v")
 
     datos = db_cables[calibre_v]
     R, X = datos["R"], datos["X"]
     theta = np.arccos(fp_v)
-    K = 2 if "1F" in fases_v else 1.732
+    
     L_km = distancia / 1000.0
     impedancia = (R * fp_v) + (X * np.sin(theta))
-    v_drop = K * corriente_calc * L_km * impedancia
+    
+    v_drop = K_FINAL * corriente_calc * L_km * impedancia
     percent_drop = (v_drop / voltaje_base) * 100
     
     st.markdown("---")
     st.subheader("📊 Resultados de la Regulación")
     m1, m2 = st.columns(2)
-    m1.metric("Caída de Voltaje", f"{v_drop:.2f} V")
+    m1.metric("Factor K Utilizado", f"{K_FINAL:.3f}")
     m2.metric("% Regulación (Caída)", f"{percent_drop:.2f} %")
     
     if percent_drop <= 3.0:
@@ -157,7 +167,7 @@ with tab2:
     else:
          st.markdown(f'<div class="fail-box-final">❌ <b>NO CUMPLE:</b> Excede el 5%. Aumentar calibre.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 3: CANALIZACIONES (Mismo Código) ---
+# --- MÓDULO 3: CANALIZACIONES ---
 with tab3:
     st.markdown('<p class="header-style">Dimensionamiento por Material y Recomendación (CEN Cap. 9)</p>', unsafe_allow_html=True)
     c_t1, c_t2 = st.columns(2)
@@ -205,7 +215,7 @@ with tab3:
     tubo_sel = tubo_a_verificar
     porcentaje = porc_verif
 
-# --- MÓDULO 4: CORTOCIRCUITO (Mismo Código) ---
+# --- MÓDULO 4: CORTOCIRCUITO ---
 with tab4:
     st.markdown('<p class="header-style">Dimensionamiento por Cortocircuito (IEEE 242)</p>', unsafe_allow_html=True)
     
@@ -250,8 +260,8 @@ with tab4:
         st.markdown(f'<div class="fail-box-final">❌ <b>FALLA TÉRMICA:</b> El calibre {calibre_cc} es menor al área mínima requerida. Selecciona {calibre_min_cc} o mayor.</div>', unsafe_allow_html=True)
 
 
-# --- 5. GENERADOR PDF ---
-def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min):
+# --- 5. GENERADOR PDF (Actualizado para incluir Factor K) ---
+def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min, k_factor_utilizado):
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 12)
@@ -264,6 +274,7 @@ def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec
     
     pdf.cell(0, 10, f"Referencia: CEN-2004 (Codigo Electrico Nacional)", ln=True)
     pdf.cell(0, 10, f"Carga: {carga} VA | Tension: {vol} V | Cable: {cal}", ln=True)
+    pdf.cell(0, 7, f"Factor K utilizado en Caida de Tension: {k_factor_utilizado:.3f}", ln=True)
     pdf.ln(5)
     
     pdf.set_font("Arial", 'B', 10)
@@ -289,9 +300,11 @@ st.sidebar.markdown("---")
 st.sidebar.header("📄 Reportes")
 
 if 'amp_real' in locals():
+    K_FINAL_REPORT = locals().get('K_FINAL', 2.0) 
+    
     pdf_bytes = create_pdf(
         carga_va, voltaje, calibre_sel, amp_real, i_diseno, 
         v_drop, percent_drop, tubo_sel, porcentaje, tubo_recomendado, 
-        area_kcmil_min, calibre_min_cc
+        area_kcmil_min, calibre_min_cc, K_FINAL_REPORT
     )
     st.sidebar.download_button("📥 Descargar Memoria PDF", pdf_bytes, "protocolo_dimensionamiento_cen.pdf", "application/pdf")
