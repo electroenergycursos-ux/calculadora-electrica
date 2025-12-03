@@ -119,7 +119,7 @@ with tab1:
     else:
         st.markdown(f'<div class="fail-box-final">❌ <b>INSUFICIENTE:</b> El calibre {calibre_sel} no es apto para la carga.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 2: CAÍDA DE TENSIÓN (Factor K Fijo de Memoria) ---
+# --- MÓDULO 2: CAÍDA DE TENSIÓN ---
 with tab2:
     st.markdown('<p class="header-style">Cálculo de Regulación (CEN 210.19)</p>', unsafe_allow_html=True)
     col_v1, col_v2 = st.columns(2)
