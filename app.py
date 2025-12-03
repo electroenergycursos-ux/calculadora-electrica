@@ -3,21 +3,16 @@ import numpy as np
 from fpdf import FPDF
 import base64
 
-# --- 1. CONFIGURACIÓN DE PÁGINA (Estilos) ---
-st.set_page_config(page_title="CEN-2004: Dimensionamiento Eléctrico", layout="wide", page_icon="⚡")
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="CEN-2004: Protocolo de Dimensionamiento Eléctrico", layout="wide", page_icon="⚡")
 
 st.markdown("""
 <style>
-    /* Estilo para los títulos de las pestañas */
     .header-style { font-size:24px; font-weight:bold; color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 5px; margin-bottom: 15px;}
-    
-    /* Cajas de Resultados (Aprobado/Falla) */
     .success-box-final { padding: 20px; border-radius: 10px; background-color: #d1e7dd; color: #0f5132; border: 2px solid #badbcc; font-size: 1.2em; text-align: center; margin-top: 15px; }
     .fail-box-final { padding: 20px; border-radius: 10px; background-color: #f8d7da; color: #842029; border: 2px solid #f5c6cb; font-size: 1.2em; text-align: center; margin-top: 15px; }
     .warning-box-final { padding: 20px; border-radius: 10px; background-color: #fff3cd; color: #664d03; border: 2px solid #ffecb5; font-size: 1.2em; text-align: center; margin-top: 15px; }
     .recommendation-box { padding: 15px; border-radius: 8px; background-color: #f0f8ff; color: #004E8C; border: 1px solid #b3d9ff; font-weight: bold; }
-    
-    /* Ajuste para los títulos principales */
     h1 { color: #1e40af; } 
 </style>
 """, unsafe_allow_html=True)
@@ -25,7 +20,7 @@ st.markdown("""
 st.title("⚡ CEN-2004: Protocolo de Dimensionamiento Eléctrico")
 st.caption("Herramienta de Dimensionamiento conforme al Código Eléctrico Nacional (CEN-2004)")
 
-# --- 2. BASE DE DATOS DE INGENIERÍA (Misma lógica) ---
+# --- 2. BASE DE DATOS DE INGENIERÍA (Valores según Tablas CEN) ---
 db_cables = {
     "14 AWG":      {"area": 2.08,  "diam": 2.80, "R": 10.17, "X": 0.190, "amp": 20, "kcmil": 4.107},
     "12 AWG":      {"area": 3.31,  "diam": 3.86, "R": 6.56,  "X": 0.177, "amp": 25, "kcmil": 6.530},
@@ -40,6 +35,16 @@ db_cables = {
 }
 
 db_breakers = [15, 20, 25, 30, 40, 50, 60, 70, 100, 125, 150, 175, 200, 225, 250]
+
+# --- NUEVA BASE DE DATOS: FACTORES DE CORRECCIÓN POR TEMPERATURA (75°C) ---
+db_temp_factors = {
+    "21-25 °C (1.04)": 1.04,
+    "26-30 °C (Base 1.00)": 1.00,
+    "31-35 °C (0.96)": 0.96,
+    "36-40 °C (0.91)": 0.91,
+    "41-45 °C (0.87)": 0.87,
+    "46-50 °C (0.82)": 0.82,
+}
 
 db_tuberias = {
     "1/2\"": {"PVC40": 184, "EMT": 196, "ARG": 192},
@@ -59,10 +64,10 @@ tubo_recomendado = "1\""
 area_kcmil_min = 6.53 
 calibre_min_cc = "12 AWG"
 
-# --- PESTAÑAS (Añadida TAB 4) ---
+# --- PESTAÑAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🛡️ 1. Ampacidad", "📉 2. Caída de Tensión", "pipe 3. Canalizaciones", "💥 4. Cortocircuito"])
 
-# --- MÓDULO 1: AMPACIDAD ---
+# --- MÓDULO 1: AMPACIDAD (CÓDIGO MODIFICADO) ---
 with tab1:
     st.markdown('<p class="header-style">Selección por Capacidad de Corriente (CEN 310.16)</p>', unsafe_allow_html=True)
     col_in1, col_in2 = st.columns(2)
@@ -74,10 +79,17 @@ with tab1:
         tipo_carga = st.radio("Tipo de Carga", ["Iluminación (FP 0.95)", "Tomacorrientes (FP 0.90)"], index=1, key="t_carga")
         
     with col_in2:
-        st.subheader("Condiciones del Conductor")
-        st.info("Temperatura Ambiente: 40°C")
-        fc_temp = 0.88 
-        st.write(f"🔹 Factor Corrección Temp: **{fc_temp}**")
+        st.subheader("Factores de Corrección")
+        
+        # 🟢 NUEVA SELECCIÓN DINÁMICA DE TEMPERATURA 
+        temp_factor_key = st.selectbox(
+            "Rango de Temperatura Ambiente (CEN 310.15)",
+            list(db_temp_factors.keys()),
+            index=3 # Por defecto 36-40°C (0.91)
+        )
+        fc_temp = db_temp_factors[temp_factor_key]
+        st.write(f"🔹 Factor de Corrección por Temperatura: **{fc_temp}**")
+        
         calibre_sel = st.selectbox("Calibre a Evaluar", list(db_cables.keys()), index=1, key="c_sel")
         num_conductores = st.number_input("N° Conductores Activos en ducto", value=3, key="n_cond")
 
@@ -107,7 +119,7 @@ with tab1:
     else:
         st.markdown(f'<div class="fail-box-final">❌ <b>INSUFICIENTE:</b> El calibre {calibre_sel} no es apto para la carga.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 2: CAÍDA DE TENSIÓN ---
+# --- MÓDULO 2: CAÍDA DE TENSIÓN (Mismo Código) ---
 with tab2:
     st.markdown('<p class="header-style">Cálculo de Regulación (CEN 210.19)</p>', unsafe_allow_html=True)
     col_v1, col_v2 = st.columns(2)
@@ -141,11 +153,11 @@ with tab2:
     if percent_drop <= 3.0:
          st.markdown(f'<div class="success-box-final">✅ <b>APROBADO:</b> Caída inferior al 3% (Recomendación CEN).</div>', unsafe_allow_html=True)
     elif percent_drop <= 5.0:
-         st.markdown(f'<div class="warning-box-final">⚠️ <b>ACEPTABLE:</b> Caída superior a 3% pero inferior a 5% (Verificar).</div>', unsafe_allow_html=True)
+         st.markdown(f'<div class="warning-box-final">⚠️ <b>ATENCIÓN:</b> Caída superior a 3% pero inferior a 5% (Verificar).</div>', unsafe_allow_html=True)
     else:
          st.markdown(f'<div class="fail-box-final">❌ <b>NO CUMPLE:</b> Excede el 5%. Aumentar calibre.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 3: CANALIZACIONES ---
+# --- MÓDULO 3: CANALIZACIONES (Mismo Código) ---
 with tab3:
     st.markdown('<p class="header-style">Dimensionamiento por Material y Recomendación (CEN Cap. 9)</p>', unsafe_allow_html=True)
     c_t1, c_t2 = st.columns(2)
@@ -193,7 +205,7 @@ with tab3:
     tubo_sel = tubo_a_verificar
     porcentaje = porc_verif
 
-# --- MÓDULO 4: CORTOCIRCUITO ---
+# --- MÓDULO 4: CORTOCIRCUITO (Mismo Código) ---
 with tab4:
     st.markdown('<p class="header-style">Dimensionamiento por Cortocircuito (IEEE 242)</p>', unsafe_allow_html=True)
     
@@ -211,6 +223,7 @@ with tab4:
         
         st.info("Constante Térmica (Cobre 75°C): K=105.0")
         area_real_kcmil = db_cables[calibre_cc]['kcmil']
+        st.write(f"🔹 Área Real ({calibre_cc}): **{area_real_kcmil:.2f} kcmil**")
 
 
     # Cálculo de Cortocircuito
@@ -236,7 +249,8 @@ with tab4:
     else:
         st.markdown(f'<div class="fail-box-final">❌ <b>FALLA TÉRMICA:</b> El calibre {calibre_cc} es menor al área mínima requerida. Selecciona {calibre_min_cc} o mayor.</div>', unsafe_allow_html=True)
 
-# --- 5. GENERADOR PDF (Mismo Código) ---
+
+# --- 5. GENERADOR PDF ---
 def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min):
     class PDF(FPDF):
         def header(self):
