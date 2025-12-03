@@ -62,7 +62,7 @@ tubo_sel, porcentaje, limite = "3/4\"", 40.0, 40
 tubo_recomendado = "1\""
 area_kcmil_min = 6.53 
 calibre_min_cc = "12 AWG"
-K_FINAL = 5.0 # Inicialización del factor K con el valor Monofásico de la Memoria
+K_FINAL = 5.0 
 
 # --- PESTAÑAS ---
 tab1, tab2, tab3, tab4 = st.tabs(["🛡️ 1. Ampacidad", "📉 2. Caída de Tensión", "pipe 3. Canalizaciones", "💥 4. Cortocircuito"])
@@ -132,7 +132,7 @@ with tab2:
     with col_v2:
         st.subheader("Factor K de la Metodología")
         
-        # 🟢 Selector K (USANDO LOS VALORES CONFIRMADOS)
+        # Selector K (USANDO LOS VALORES CONFIRMADOS)
         k_mode_key = st.selectbox("Sistema de Fases y Factor K (Memoria)", 
                                   ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
                                   index=0 if "Monofásico" in sistema else 1,
@@ -166,7 +166,7 @@ with tab2:
     else:
          st.markdown(f'<div class="fail-box-final">❌ <b>NO CUMPLE:</b> Excede el 5%. Aumentar calibre.</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 3: CANALIZACIONES ---
+# --- MÓDULO 3: CANALIZACIONES (Añadido Override de Área) ---
 with tab3:
     st.markdown('<p class="header-style">Dimensionamiento por Material y Recomendación (CEN Cap. 9)</p>', unsafe_allow_html=True)
     c_t1, c_t2 = st.columns(2)
@@ -179,8 +179,24 @@ with tab3:
         st.subheader("Configuración del Cableado")
         calibre_t = st.selectbox("Calibre Conductores", list(db_cables.keys()), index=1, key="t_cal")
         n_hilos = st.number_input("Total Hilos (Fases+Neutro+Tierra)", 1, 30, 4, key="n_hilos")
+        
+        # 🟢 CAMPO PARA ANULAR EL ÁREA UNITARIA DEL CABLE 
+        area_default = db_cables[calibre_t]["area"]
+        override_area = st.checkbox("Usar Área Unitaria Personalizada", key="override_area")
+        
+        if override_area:
+            area_uni = st.number_input(
+                f"Área Unitaria Custom (mm²) para {calibre_t}", 
+                value=area_default, 
+                key="custom_area_uni",
+                help="Introduzca el valor de mm² que usa en su Memoria de Cálculo si no coincide con el estándar."
+            )
+        else:
+            area_uni = area_default
+        
+        st.info(f"Área Unitaria Usada: **{area_uni:.2f} mm²**")
 
-    area_uni = db_cables[calibre_t]["area"]
+    # CÁLCULOS
     area_ocup = n_hilos * area_uni
     limite = 53 if n_hilos == 1 else (31 if n_hilos == 2 else 40)
     
