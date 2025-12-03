@@ -8,19 +8,28 @@ st.set_page_config(page_title="CEN-2004: Protocolo de Dimensionamiento Eléctric
 
 st.markdown("""
 <style>
-    .header-style { font-size:24px; font-weight:bold; color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 5px; margin-bottom: 15px;}
-    .success-box-final { padding: 20px; border-radius: 10px; background-color: #d1e7dd; color: #0f5132; border: 2px solid #badbcc; font-size: 1.2em; text-align: center; margin-top: 15px; }
-    .fail-box-final { padding: 20px; border-radius: 10px; background-color: #f8d7da; color: #842029; border: 2px solid #f5c6cb; font-size: 1.2em; text-align: center; margin-top: 15px; }
-    .warning-box-final { padding: 20px; border-radius: 10px; background-color: #fff3cd; color: #664d03; border: 2px solid #ffecb5; font-size: 1.2em; text-align: center; margin-top: 15px; }
+    /* Estilo para los títulos de los módulos en el dashboard */
+    .header-style { font-size:18px; font-weight:bold; color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 5px; margin-bottom: 15px;}
+    
+    /* Cajas de Módulos (Estilo de la imagen) */
+    .module-box { border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);}
+    
+    /* Indicadores de APROBADO/FALLA */
+    .success-box-final { padding: 15px; border-radius: 8px; background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; font-weight: bold; text-align: center; margin-top: 15px; }
+    .fail-box-final { padding: 15px; border-radius: 8px; background-color: #f8d7da; color: #842029; border: 1px solid #f5c6cb; font-weight: bold; text-align: center; margin-top: 15px; }
+    .warning-box-final { padding: 15px; border-radius: 8px; background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; font-weight: bold; text-align: center; margin-top: 15px; }
     .recommendation-box { padding: 15px; border-radius: 8px; background-color: #f0f8ff; color: #004E8C; border: 1px solid #b3d9ff; font-weight: bold; }
     h1 { color: #1e40af; } 
+    
+    /* Ajuste para las métricas para que se vean mejor */
+    [data-testid="stMetricValue"] { font-size: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("⚡ CEN-2004: Protocolo de Dimensionamiento Eléctrico")
 st.caption("Herramienta de Dimensionamiento conforme al Código Eléctrico Nacional (CEN-2004)")
 
-# --- 2. BASES DE DATOS DE INGENIERÍA ---
+# --- 2. BASES DE DATOS DE INGENIERÍA (Sin cambios) ---
 db_cables = {
     "14 AWG":      {"area": 2.08,  "diam": 2.80, "R": 10.17, "X": 0.190, "amp": 20, "kcmil": 4.107},
     "12 AWG":      {"area": 3.31,  "diam": 3.86, "R": 6.56,  "X": 0.177, "amp": 25, "kcmil": 6.530},
@@ -37,24 +46,17 @@ db_cables = {
 db_breakers = [15, 20, 25, 30, 40, 50, 60, 70, 100, 125, 150, 175, 200, 225, 250]
 
 db_temp_factors = {
-    "21-25 °C (1.04)": 1.04,
-    "26-30 °C (Base 1.00)": 1.00,
-    "31-35 °C (0.96)": 0.96,
-    "36-40 °C (0.91)": 0.91,
-    "41-45 °C (0.87)": 0.87,
-    "46-50 °C (0.82)": 0.82,
+    "21-25 °C (1.04)": 1.04, "26-30 °C (Base 1.00)": 1.00, "31-35 °C (0.96)": 0.96,
+    "36-40 °C (0.91)": 0.91, "41-45 °C (0.87)": 0.87, "46-50 °C (0.82)": 0.82,
 }
 
 db_tuberias = {
-    "1/2\"": {"PVC40": 184, "EMT": 196, "ARG": 192},
-    "3/4\"": {"PVC40": 327, "EMT": 353, "ARG": 346},
-    "1\"":   {"PVC40": 568, "EMT": 595, "ARG": 583},
-    "1 1/4\"": {"PVC40": 986, "EMT": 1026, "ARG": 1005},
-    "1 1/2\"": {"PVC40": 1338, "EMT": 1391, "ARG": 1362},
-    "2\"":   {"PVC40": 2186, "EMT": 2275, "ARG": 2228},
+    "1/2\"": {"PVC40": 184, "EMT": 196, "ARG": 192}, "3/4\"": {"PVC40": 327, "EMT": 353, "ARG": 346},
+    "1\"":   {"PVC40": 568, "EMT": 595, "ARG": 583}, "1 1/4\"": {"PVC40": 986, "EMT": 1026, "ARG": 1005},
+    "1 1/2\"": {"PVC40": 1338, "EMT": 1391, "ARG": 1362}, "2\"":   {"PVC40": 2186, "EMT": 2275, "ARG": 2228},
 }
 
-# Inicialización de variables para el PDF
+# Inicialización de variables para el PDF (Usando valores del caso C1)
 carga_va, voltaje, sistema, calibre_sel, num_conductores, amp_real, i_diseno = 1260.0, 120, "Monofásico (1F)", "12 AWG", 3, 22.0, 13.12
 percent_drop = 1.83
 v_drop = 2.2
@@ -64,36 +66,45 @@ area_kcmil_min = 6.53
 calibre_min_cc = "12 AWG"
 K_FINAL = 5.0 
 
-# --- PESTAÑAS ---
-tab1, tab2, tab3, tab4 = st.tabs(["🛡️ 1. Ampacidad", "📉 2. Caída de Tensión", "pipe 3. Canalizaciones", "💥 4. Cortocircuito"])
+# --- INTERFAZ DE ENTRADA (Módulo de Configuración Común) ---
+st.header("1. Configuración del Sistema")
+col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+with col_cfg1:
+    carga_va = st.number_input("Carga Total (VA)", value=1260.0, step=100.0, key="c_va")
+with col_cfg2:
+    voltaje = st.selectbox("Tensión de Servicio (V)", [120, 208, 480], index=0, key="v_ser")
+with col_cfg3:
+    sistema = st.selectbox("Sistema", ["Monofásico (1F)", "Trifásico (3F)"], key="sist")
+st.markdown("---")
 
-# --- MÓDULO 1: AMPACIDAD ---
-with tab1:
-    st.markdown('<p class="header-style">Selección por Capacidad de Corriente (CEN 310.16)</p>', unsafe_allow_html=True)
-    col_in1, col_in2 = st.columns(2)
-    with col_in1:
-        st.subheader("Carga y Sistema")
-        carga_va = st.number_input("Carga Total (VA)", value=1260.0, step=100.0, key="c_va")
-        voltaje = st.selectbox("Tensión de Servicio", [120, 208, 480], index=0, key="v_ser")
-        sistema = st.selectbox("Sistema", ["Monofásico (1F)", "Trifásico (3F)"], key="sist")
-        tipo_carga = st.radio("Tipo de Carga", ["Iluminación (FP 0.95)", "Tomacorrientes (FP 0.90)"], index=1, key="t_carga")
-        
-    with col_in2:
-        st.subheader("Factores de Corrección")
-        
-        temp_factor_key = st.selectbox(
-            "Rango de Temperatura Ambiente (CEN 310.15)",
-            list(db_temp_factors.keys()),
-            index=3, # Por defecto 36-40°C
-            key="temp_factor_key"
-        )
-        fc_temp = db_temp_factors[temp_factor_key]
-        st.write(f"🔹 Factor de Corrección por Temperatura: **{fc_temp}**")
-        
+# --- INTERFAZ DASHBOARD (GRID 2x2) ---
+col1, col2 = st.columns(2)
+col3, col4 = st.columns(2)
+
+
+# =========================================================
+# MÓDULO 1: AMPACIDAD (col1)
+# =========================================================
+with col1:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">1. Capacidad y Protección (CEN 310.16)</p>', unsafe_allow_html=True)
+    
+    col1a, col1b = st.columns(2)
+    with col1a:
         calibre_sel = st.selectbox("Calibre a Evaluar", list(db_cables.keys()), index=1, key="c_sel")
-        num_conductores = st.number_input("N° Conductores Activos en ducto", value=3, key="n_cond")
+    with col1b:
+        num_conductores = st.number_input("N° Conductores Activos", value=3, key="n_cond")
 
-    fp = 0.95 if "Iluminación" in tipo_carga else 0.90
+    temp_factor_key = st.selectbox(
+        "Rango de Temperatura Ambiente",
+        list(db_temp_factors.keys()),
+        index=3, # Por defecto 36-40°C
+        key="temp_factor_key"
+    )
+    
+    # CÁLCULOS
+    fp = 0.95 if "Iluminación" in locals().get('tipo_carga', "Tomacorrientes (FP 0.90)") else 0.90 
+    fc_temp = db_temp_factors[temp_factor_key]
     denom = voltaje if "Monofásico" in sistema else (voltaje * 1.732)
     corriente_carga = carga_va / denom
     
@@ -108,99 +119,93 @@ with tab1:
 
     # Mostrar Resultados Ampacidad
     st.markdown("---")
-    st.subheader("📊 Resultados de la Verificación")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Corriente Carga (Ib)", f"{corriente_carga:.2f} A")
-    c2.metric("Corriente Diseño (125%)", f"{i_diseno:.2f} A")
-    c3.metric(f"Capacidad {calibre_sel} (Corregida)", f"{amp_real:.2f} A", delta=f"Base: {amp_base}A")
+    res_a1, res_a2 = st.columns(2)
+    res_a1.metric("Corriente Diseño (Ireq)", f"{i_diseno:.2f} A")
+    res_a2.metric("Ampacidad Corregida", f"{amp_real:.2f} A")
 
     if amp_real >= i_diseno:
-        st.markdown(f'<div class="success-box-final">✅ <b>APROBADO:</b> El conductor soporta la carga de diseño.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable {calibre_sel} es apto. (Protección sugerida: {breaker_ideal}A)</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="fail-box-final">❌ <b>INSUFICIENTE:</b> El calibre {calibre_sel} no es apto para la carga.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="fail-box-final">❌ FALLA: El calibre es insuficiente.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 2: CAÍDA DE TENSIÓN ---
-with tab2:
-    st.markdown('<p class="header-style">Cálculo de Regulación (CEN 210.19)</p>', unsafe_allow_html=True)
-    col_v1, col_v2 = st.columns(2)
-    with col_v1:
-        st.subheader("Parámetros del Circuito")
-        distancia = st.number_input("Longitud (metros)", value=20.0, key="dist")
-        corriente_calc = st.number_input("Corriente (A)", value=corriente_carga, key="i_calc") 
-        calibre_v = st.selectbox("Calibre verificado", list(db_cables.keys()), index=1, key="v_cal")
+# =========================================================
+# MÓDULO 2: CAÍDA DE TENSIÓN (col2)
+# =========================================================
+with col2:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">2. Caída de Tensión (CEN 210.19)</p>', unsafe_allow_html=True)
     
-    with col_v2:
-        st.subheader("Factor K de la Metodología")
-        
-        # Selector K (USANDO LOS VALORES CONFIRMADOS)
-        k_mode_key = st.selectbox("Sistema de Fases y Factor K (Memoria)", 
-                                  ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
-                                  index=0 if "Monofásico" in sistema else 1,
-                                  key="k_mode_final")
-        
-        K_FINAL = 5.0 if "Monofásico" in k_mode_key else 10.0
-        
-        fp_v = st.slider("Factor Potencia", 0.8, 1.0, fp, key="fp_v")
-        voltaje_base = st.number_input("Voltaje Base", value=voltaje, key="v_base")
-
+    st.subheader("Parámetros de Entrada")
+    col2a, col2b = st.columns(2)
+    with col2a:
+        distancia = st.number_input("Longitud (metros)", value=20.0, key="dist")
+    with col2b:
+        corriente_calc = st.number_input("Corriente (A)", value=corriente_carga, key="i_calc") 
+    
+    # 🟢 Selector K (USANDO LOS VALORES CONFIRMADOS)
+    k_mode_key = st.selectbox("Factor K de la Metodología", 
+                              ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
+                              index=0 if "Monofásico" in sistema else 1,
+                              key="k_mode_final")
+    
+    K_FINAL = 5.0 if "Monofásico" in k_mode_key else 10.0
+    
+    fp_v = st.slider("Factor Potencia", 0.8, 1.0, 0.90, key="fp_v")
+    calibre_v = st.selectbox("Calibre para cálculo", list(db_cables.keys()), index=1, key="v_cal")
+    
+    # CÁLCULOS
     datos = db_cables[calibre_v]
     R, X = datos["R"], datos["X"]
     theta = np.arccos(fp_v)
-    
     L_km = distancia / 1000.0
     impedancia = (R * fp_v) + (X * np.sin(theta))
-    
     v_drop = K_FINAL * corriente_calc * L_km * impedancia
-    percent_drop = (v_drop / voltaje_base) * 100
+    percent_drop = (v_drop / voltaje) * 100
     
     st.markdown("---")
-    st.subheader("📊 Resultados de la Regulación")
-    m1, m2 = st.columns(2)
-    m1.metric("Factor K Utilizado", f"{K_FINAL:.3f}")
-    m2.metric("% Regulación (Caída)", f"{percent_drop:.2f} %")
+    st.subheader("📊 Resultados")
+    res_v1, res_v2 = st.columns(2)
+    res_v1.metric("Factor K Utilizado", f"{K_FINAL:.1f}")
+    res_v2.metric("% Caída de Tensión", f"{percent_drop:.2f} %")
     
     if percent_drop <= 3.0:
-         st.markdown(f'<div class="success-box-final">✅ <b>APROBADO:</b> Caída inferior al 3% (Recomendación CEN).</div>', unsafe_allow_html=True)
-    elif percent_drop <= 5.0:
-         st.markdown(f'<div class="warning-box-final">⚠️ <b>ATENCIÓN:</b> Caída superior a 3% pero inferior a 5% (Verificar).</div>', unsafe_allow_html=True)
+         st.markdown(f'<div class="success-box-final">✅ CUMPLE: Caída inferior al 3%.</div>', unsafe_allow_html=True)
     else:
-         st.markdown(f'<div class="fail-box-final">❌ <b>NO CUMPLE:</b> Excede el 5%. Aumentar calibre.</div>', unsafe_allow_html=True)
+         st.markdown(f'<div class="fail-box-final">❌ NO CUMPLE: Caída excesiva.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 3: CANALIZACIONES (Añadido Override de Área) ---
-with tab3:
-    st.markdown('<p class="header-style">Dimensionamiento por Material y Recomendación (CEN Cap. 9)</p>', unsafe_allow_html=True)
-    c_t1, c_t2 = st.columns(2)
-    with c_t1:
-        st.subheader("Configuración de Tubería")
-        material_sel = st.selectbox("Material de Tubería", ["PVC40", "EMT", "ARG"], key="mat_sel")
-        st.caption("Límite de Ocupación: 40% (CEN, Cap. 9, Tabla 1)")
-        
-    with c_t2:
-        st.subheader("Configuración del Cableado")
-        calibre_t = st.selectbox("Calibre Conductores", list(db_cables.keys()), index=1, key="t_cal")
-        n_hilos = st.number_input("Total Hilos (Fases+Neutro+Tierra)", 1, 30, 4, key="n_hilos")
-        
-        # 🟢 CAMPO PARA ANULAR EL ÁREA UNITARIA DEL CABLE 
-        area_default = db_cables[calibre_t]["area"]
-        override_area = st.checkbox("Usar Área Unitaria Personalizada", key="override_area")
-        
-        if override_area:
-            area_uni = st.number_input(
-                f"Área Unitaria Custom (mm²) para {calibre_t}", 
-                value=area_default, 
-                key="custom_area_uni",
-                help="Introduzca el valor de mm² que usa en su Memoria de Cálculo si no coincide con el estándar."
-            )
-        else:
-            area_uni = area_default
-        
-        st.info(f"Área Unitaria Usada: **{area_uni:.2f} mm²**")
+# =========================================================
+# MÓDULO 3: CANALIZACIONES (col3)
+# =========================================================
+with col3:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">3. Canalizaciones (Ocupación CEN Cap. 9)</p>', unsafe_allow_html=True)
+    
+    st.subheader("Configuración")
+    material_sel = st.selectbox("Material de Tubería", ["PVC40", "EMT", "ARG"], key="mat_sel")
+    calibre_t = st.selectbox("Calibre Conductores", list(db_cables.keys()), index=1, key="t_cal")
+    n_hilos = st.number_input("Total Hilos (Fases+Neutro+Tierra)", 1, 30, 4, key="n_hilos")
+
+    # 🟢 LÓGICA DE OVERRIDE
+    area_default = db_cables[calibre_t]["area"]
+    override_area = st.checkbox("Usar Área Unitaria Personalizada", key="override_area")
+    
+    if override_area:
+        area_uni = st.number_input(
+            f"Área Unitaria Custom (mm²) para {calibre_t}", 
+            value=area_default, 
+            key="custom_area_uni",
+            help="Usar si su tabla tiene un valor diferente al estándar (ej. 8.78 mm² para 12 AWG)."
+        )
+    else:
+        area_uni = area_default
+    
+    st.caption(f"Área Unitaria Usada: **{area_uni:.2f} mm²**")
 
     # CÁLCULOS
     area_ocup = n_hilos * area_uni
     limite = 53 if n_hilos == 1 else (31 if n_hilos == 2 else 40)
-    
-    # BÚSQUEDA DEL TUBO MÍNIMO
     area_necesaria_100 = area_ocup * 100 / limite
     tubo_recomendado = "No disponible"
     
@@ -214,41 +219,36 @@ with tab3:
     st.markdown("---")
     st.markdown(f'<div class="recommendation-box">✅ Diámetro Mínimo Requerido ({material_sel}): <b>{tubo_recomendado}</b></div>', unsafe_allow_html=True)
     
-    st.subheader("Verificar Diámetro Seleccionado")
-    tubo_a_verificar = st.selectbox("Selecciona Diámetro para verificar", list(db_tuberias.keys()), index=1, key="tubo_verif")
-    
+    tubo_a_verificar = st.selectbox("Verificar Diámetro", list(db_tuberias.keys()), index=1, key="tubo_verif")
     area_tubo_verif = db_tuberias[tubo_a_verificar][material_sel]
     porc_verif = (area_ocup / area_tubo_verif) * 100
     
-    st.write(f"Área Interna del {tubo_a_verificar}: **{area_tubo_verif:.2f} mm²**")
-
     if porc_verif <= limite:
-        st.markdown(f'<div class="success-box-final">✅ <b>APROBADO:</b> Ocupación {porc_verif:.2f}% (Máx {limite}%).</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="success-box-final">✅ Ocupación {porc_verif:.2f}% (Máx {limite}%).</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="fail-box-final">❌ <b>SATURADO:</b> Ocupación {porc_verif:.2f}% (Máx {limite}%).</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="fail-box-final">❌ SATURADO: Ocupación {porc_verif:.2f}% (Máx {limite}%).</div>', unsafe_allow_html=True)
         
     tubo_sel = tubo_a_verificar
     porcentaje = porc_verif
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MÓDULO 4: CORTOCIRCUITO ---
-with tab4:
-    st.markdown('<p class="header-style">Dimensionamiento por Cortocircuito (IEEE 242)</p>', unsafe_allow_html=True)
+# =========================================================
+# MÓDULO 4: CORTOCIRCUITO (col4)
+# =========================================================
+with col4:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">4. Cortocircuito (IEEE 242)</p>', unsafe_allow_html=True)
+    
+    st.subheader("Parámetros de Falla")
+    i_falla = st.number_input("Corriente de Falla (Icc, Amps)", value=10000.0, step=500.0, key="i_falla")
+    tiempo_despeje = st.number_input("Tiempo de Despeje (t, segundos)", value=0.5, step=0.01, key="t_despeje")
+
+    st.subheader("Verificación Térmica")
+    calibre_cc = st.selectbox("Calibre a Verificar", list(db_cables.keys()), index=1, key="cc_cal")
     
     K_CONST = 105.0 
-    
-    c_cc1, c_cc2 = st.columns(2)
-    with c_cc1:
-        st.subheader("Parámetros de Falla")
-        i_falla = st.number_input("Corriente de Falla (Icc, Amps)", value=10000.0, step=500.0, key="i_falla")
-        tiempo_despeje = st.number_input("Tiempo de Despeje del Breaker (t, segundos)", value=0.5, step=0.01, key="t_despeje")
-    
-    with c_cc2:
-        st.subheader("Verificación del Conductor")
-        calibre_cc = st.selectbox("Calibre a Verificar", list(db_cables.keys()), index=1, key="cc_cal")
-        
-        st.info("Constante Térmica (Cobre 75°C): K=105.0")
-        area_real_kcmil = db_cables[calibre_cc]['kcmil']
-        st.write(f"🔹 Área Real ({calibre_cc}): **{area_real_kcmil:.2f} kcmil**")
+    area_real_kcmil = db_cables[calibre_cc]['kcmil']
+    st.caption(f"Área Real ({calibre_cc}): {area_real_kcmil:.2f} kcmil (K=105.0)")
 
 
     # Cálculo de Cortocircuito
@@ -262,21 +262,25 @@ with tab4:
                 break
     else:
         area_kcmil_min = 0
+        calibre_min_cc = "N/A"
+
 
     st.markdown("---")
     m_cc1, m_cc2 = st.columns(2)
-    m_cc1.metric("Área Mínima Requerida (kcmil)", f"{area_kcmil_min:.2f} kcmil")
-    m_cc2.metric("Calibre Mínimo Requerido", calibre_min_cc)
+    m_cc1.metric("Área Mínima Requerida", f"{area_kcmil_min:.2f} kcmil")
+    m_cc2.metric("Calibre Mínimo", calibre_min_cc)
 
-    st.subheader("Evaluación del Calibre Seleccionado:")
     if area_real_kcmil >= area_kcmil_min:
-        st.markdown(f'<div class="success-box-final">✅ <b>APROBADO:</b> El calibre {calibre_cc} ({area_real_kcmil:.2f} kcmil) es seguro ante la falla térmica.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable es seguro ante falla térmica.</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="fail-box-final">❌ <b>FALLA TÉRMICA:</b> El calibre {calibre_cc} es menor al área mínima requerida. Selecciona {calibre_min_cc} o mayor.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="fail-box-final">❌ FALLA TÉRMICA: Calibre insuficiente.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-
-# --- 5. GENERADOR PDF ---
+# =========================================================
+# 5. GENERADOR PDF (En la Barra Lateral)
+# =========================================================
 def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min, k_factor_utilizado):
+    # Lógica PDF
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 12)
