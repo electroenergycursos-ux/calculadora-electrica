@@ -118,4 +118,350 @@ with col1:
     st.markdown("---")
     res_a1, res_a2 = st.columns(2)
     res_a1.metric("Corriente Diseño (Ireq)", f"{i_diseno:.2f} A")
-    res_a2.metric("Ampacidad Corregida", f
+    res_a2.metric("Ampacidad Corregida", f"{amp_real:.2f} A") # LINEA CORREGIDA
+    
+    if amp_real >= i_diseno:
+        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable es apto. (Protección sugerida: {breaker_ideal}A)</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="fail-box-final">❌ FALLA: El calibre es insuficiente.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================================================
+# MÓDULO 2: CAÍDA DE TENSIÓN (col2)
+# =========================================================
+with col2:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">2. Caída de Tensión</p>', unsafe_allow_html=True)
+    
+    col2a, col2b = st.columns(2)
+    with col2a:
+        distancia = st.number_input("Longitud (metros)", value=20.0, key="dist")
+    with col2b:
+        corriente_calc = st.number_input("Corriente (A)", value=corriente_carga, key="i_calc") 
+    
+    st.caption("Factor K de su Metodología de Cálculo")
+    k_mode_key = st.selectbox("Sistema de Fases y Factor K", 
+                              ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
+                              index=0 if "Monofásico" in sistema else 1,
+                              key="k_mode_final")
+    
+    K_FINAL = 5.0 if "Monofásico" in k_mode_key else 10.0
+    
+    fp_v = st.slider("Factor Potencia", 0.8, 1.0, 0.90, key="fp_v")
+    calibre_v = st.selectbox("Calibre para cálculo", list(db_cables.keys()), index=1, key="v_cal")
+    
+    # CÁLCULOS
+    datos = db_cables[calibre_v]
+    R, X = datos["R"], datos["X"]
+    theta = np.arccos(fp_v)
+    L_km = distancia / 1000.0
+    impedancia = (R * fp_v) + (X * np.sin(theta))
+    v_drop = K_FINAL * corriente_calc * L_km * impedancia
+    percent_drop = (v_drop / voltaje) * 100
+    
+    st.markdown("---")
+    st.subheader("📊 Resultados")
+    res_v1, res_v2 = st.columns(2)
+    res_v1.metric("Factor K Utilizado", f"{K_FINAL:.1f}")
+    res_v2.metric("% Caída de Tensión", f"{percent_drop:.2f} %")
+    
+    if percent_drop <= 3.0:
+         st.markdown('<div class="success-box-final">✅ CUMPLE: Caída inferior al 3%.</div>', unsafe_allow_html=True)
+    else:
+         st.markdown('<div class="fail-box-final">❌ NO CUMPLE: Caída excesiva.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================================================
+# MÓDULO 3: CANALIZACIONES (col3)
+# =========================================================
+with col3:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">3. Canalizaciones</p>', unsafe_allow_html=True)
+    
+    st.subheader("Configuración")
+    material_sel = st.selectbox("Material de Tubería", ["PVC40", "EMT", "ARG"], key="mat_sel")
+    calibre_t = st.selectbox("Calibre Conductores", list(db_cables.keys()), index=1, key="t_cal")
+    n_hilos = st.number_input("Total Hilos (Fases+Neutro+Tierra)", 1, 30, 4, key="n_hilos")
+
+    # LÓGICA DE OVERRIDE DE ÁREA
+    area_default = db_cables[calibre_t]["area"]
+    override_area = st.checkbox("Usar Área Unitaria Personalizada", key="override_area")
+    
+    if override_area:
+        area_uni = st.number_input(
+            f"Área Unitaria Custom (mm²) para {calibre_t}", 
+            value=area_default, 
+            key="custom_area_uni",
+            help="Introduzca el valor de mm² que usa en su Memoria de Cálculo para igualar el % de ocupación."
+        )
+    else:
+        area_uni = area_default
+    
+    st.caption(f"Área Unitaria Usada: **{area_uni:.2f} mm²**")
+
+    # CÁLCULOS
+    area_ocup = n_hilos * area_uni
+    limite = 53 if n_hilos == 1 else (31 if n_hilos == 2 else 40)
+    area_necesaria_100 = area_ocup * 100 / limite
+    tubo_recomendado = "No disponible"
+    
+    for size, areas in db_tuberias.items():
+        area_disponible = areas[material_sel]
+        if area_disponible >= area_necesaria_100:
+            tubo_recomendado = size
+            break
+            
+    # Módulo de Verificación
+    st.markdown("---")
+    st.markdown(f'<div class="recommendation-box">✅ Diámetro Mínimo Requerido ({material_sel}): <b>{tubo_recomendado}</b></div>', unsafe_allow_html=True)
+    
+    tubo_a_verificar = st.selectbox("Verificar Diámetro", list(db_tuberias.keys()), index=1, key="tubo_verif")
+    area_tubo_verif = db_tuberias[tubo_a_verificar][material_sel]
+    porc_verif = (area_ocup / area_tubo_verif) * 100
+    
+    if porc_verif <= limite:
+        st.markdown(f'<div class="success-box-final">✅ Ocupación {porc_verif:.2f}% (Máx {limite}%).</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="fail-box-final">❌ SATURADO: Ocupación {porc_verif:.2f}% (Máx {limite}%).</div>', unsafe_allow_html=True)
+        
+    tubo_sel = tubo_a_verificar
+    porcentaje = porc_verif
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================================================
+# MÓDULO 4: CORTOCIRCUITO (col4)
+# =========================================================
+with col4:
+    st.markdown('<div class="module-box">', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">4. Cortocircuito (Cálculo Automático Térmico)</p>', unsafe_allow_html=True)
+    
+    st.subheader("Verificación Térmica (Conductor)")
+    calibre_cc = st.selectbox("Calibre a Verificar", list(db_cables.keys()), index=1, key="cc_cal_final")
+    
+    st.caption("Parámetros de Falla")
+    i_cap_interrupcion = st.number_input("Capacidad de Interrupción del Tablero (kA)", value=10.0, step=0.5, key="i_cap_int") * 1000 # Convertir a Amps
+    tiempo_despeje = st.number_input("Tiempo de Despeje (t, segundos)", value=0.5, step=0.01, key="t_despeje")
+
+    
+    K_CONST = 105.0 
+    area_real_kcmil = db_cables[calibre_cc]['kcmil']
+    
+    # CÁLCULO AUTOMÁTICO DE Icc MÁXIMA PERMITIDA
+    if area_real_kcmil > 0 and tiempo_despeje > 0:
+        i_cc_max_permitida = (K_CONST * area_real_kcmil) / np.sqrt(tiempo_despeje)
+    else:
+        i_cc_max_permitida = 0.0
+
+    st.markdown("---")
+    st.subheader("📊 Resultados de la Capacidad")
+    m_cc1, m_cc2 = st.columns(2)
+    m_cc1.metric("Icc Máx. Permisible (Conductor)", f"{i_cc_max_permitida/1000:.2f} kA")
+    m_cc2.metric("Icc del Tablero (Ref.)", f"{i_cap_interrupcion/1000:.1f} kA")
+
+    if i_cc_max_permitida >= i_cap_interrupcion:
+        st.markdown('<div class="success-box-final">✅ CUMPLE: Cable soporta el nivel de cortocircuito del tablero.</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="fail-box-final">❌ FALLA TÉRMICA: El cable podría fundirse ante la falla máxima del tablero.</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# =========================================================
+# 5. GENERADOR PDF (Botón de Imprimir)
+# =========================================================
+def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, i_cc_max_cond, i_cc_tablero, k_factor_utilizado, cal_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, num_cond_val, calibre_t):
+    
+    # Obtener valores detallados
+    fc_temp_val = db_temp_factors[temp_key]
+    
+    class PDF(FPDF):
+        def header(self):
+            self.set_font('Arial', 'B', 14)
+            self.cell(0, 10, 'PROTOCOLO DE DIMENSIONAMIENTO ELÉCTRICO (CEN-2004)', 0, 1, 'C') 
+            self.ln(5)
+            self.set_font('Arial', 'I', 10)
+            if 'current_date' in st.session_state:
+                self.cell(0, 5, f"Fecha de Generación: {st.session_state.current_date}", 0, 1, 'R')
+            self.ln(2)
+
+    if 'current_date' not in st.session_state:
+         st.session_state.current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=10)
+    
+    
+    # ----------------------------------------------------
+    # RESUMEN DE RESULTADOS (INICIO DEL PDF)
+    # ----------------------------------------------------
+    pdf.set_fill_color(220, 220, 220)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 7, "RESUMEN DE RESULTADOS", 1, 1, 'L', 1)
+    pdf.set_font("Arial", size=10)
+    
+    res_amp = "CUMPLE" if amp >= i_dis else "FALLA"
+    res_v = "CUMPLE" if v_pct <= 3 else "FALLA"
+    res_t = "CUMPLE" if porc_tub <= 40 else "FALLA"
+    res_cc = "CUMPLE" if i_cc_max_cond >= i_cc_tablero else "FALLA"
+
+    pdf.cell(0, 5, f"1. Ampacidad ({cal_amp}): {amp:.2f} A (Req: {i_dis:.2f} A) -> {res_amp}", ln=True)
+    pdf.cell(0, 5, f"2. Caída Tensión ({cal_v}): {v_dp:.2f} V ({v_pct:.2f}%) -> {res_v}", ln=True)
+    pdf.cell(0, 5, f"3. Tubería ({tub}): Ocupación {porc_tub:.2f}% (Mín. {tubo_rec}) -> {res_t}", ln=True)
+    pdf.cell(0, 5, f"4. Cortocircuito: Cap. Térmica {i_cc_max_cond/1000:.2f} kA (Cap. Tablero {i_cc_tablero/1000:.1f} kA) -> {res_cc}", ln=True)
+    pdf.ln(5)
+    
+    # ----------------------------------------------------
+    # SECCIÓN 6: CÁLCULO DEL CONDUCTOR (METODOLOGÍA)
+    # ----------------------------------------------------
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, "6. CÁLCULO DEL CONDUCTOR", 0, 1, 'L')
+    pdf.ln(1)
+    
+    # 6.1 Selección del Conductor por Capacidad de Corriente
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "6.1 Selección del Conductor por Capacidad de Corriente.", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    texto_61 = f"Empleando la tabla 310-16 del Código Eléctrico Nacional (CEN-2004), se obtiene la ampacidad base de {amp_base_val:.2f} A para el calibre {cal_amp}. Adicionalmente, se aplica un factor de corrección por temperatura y un factor por agrupamiento (si aplica), resultando una Ampacidad Corregida de {amp:.2f} A. La corriente de diseño requerida es Ireq = I_Carga x 1.25 = {I_carga:.2f} A x 1.25 = {i_dis:.2f} A."
+    pdf.multi_cell(0, 5, texto_61)
+    
+    pdf.ln(1)
+    
+    # 6.5 Cálculo del Factor de Corrección por Temperatura de Alimentadores en Baja Tensión
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "6.5 Cálculo del Factor de Corrección por Temperatura de Alimentadores en Baja Tensión.", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    pdf.multi_cell(0, 5, "Este ajuste se realiza de acuerdo a los factores contemplados en la Tabla 310.16 del CEN. El factor de corrección depende del tipo de conductor y de la temperatura ambiente.")
+    
+    pdf.set_font("Arial", 'I', 10)
+    pdf.cell(0, 5, u'FC_{Temp} = (TC - TA_2) / (TC - TA_1)', 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    texto_65_res = f"Para el caso de conductores tipo THW-75°C y una temperatura ambiente de 40°C, el factor de corrección de la metodología es típicamente {fc_temp_val:.2f} (correspondiente al rango {temp_key})."
+    pdf.multi_cell(0, 5, texto_65_res)
+    pdf.ln(1)
+    
+    # 6.2 Selección del Conductor por Caída de Tensión
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "6.2 Selección del Conductor por Caída de Tensión.", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    texto_62_intro = "La selección por caída de tensión tiene por objeto dimensionar el conductor a fin de que la caída de tensión que ocurre en él con la corriente nominal de carga no pase los límites admisibles (3% recomendado CEN)."
+    pdf.multi_cell(0, 5, texto_62_intro)
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "a. El cálculo de la caída de tensión se realiza basado en las siguientes ecuaciones (Fórmula del Centro de Carga):", 0, 1, 'L')
+    pdf.set_font("Arial", 'I', 10)
+    
+    if "Monofásico" in sist:
+        pdf.cell(0, 5, u"Sistemas Monofásicos: \u0394V % = KVA \u22c5 L \u22c5 (r\u22c5cos\u03a6 + x\u22c5sen\u03a6) / (K \u22c5 kV\u00b2)", 0, 1, 'L') 
+    else:
+        pdf.cell(0, 5, u"Sistemas Trifásicos: \u0394V % = KVA \u22c5 L \u22c5 (r\u22c5cos\u03a6 + x\u22c5sen\u03a6) / (K \u22c5 kV\u00b2)", 0, 1, 'L')
+        
+    pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 5, f"La metodología adoptada utiliza un factor K personalizado de {k_factor_utilizado:.1f} para sistemas {sist}. Para el calibre {cal_v} (R={R_v:.2f} \u03a9/Km, X={X_v:.3f} \u03a9/Km) la caída calculada es: {v_pct:.2f}%.")
+    pdf.ln(1)
+    
+    # 6.6 Cálculo del Factor de Corrección por Temperatura de Alimentadores en Media Tensión (Solo estructura, sin PDVSA)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "6.6 Cálculo del Factor de Corrección por Temperatura de Alimentadores en Media Tensión.", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    pdf.multi_cell(0, 5, f"Para alimentadores en Media Tensión (2001 V – 35000 V), el factor de corrección de la ampacidad nominal por temperatura se calcula de acuerdo a la fórmula indicada en la sección 310.60 del CEN. Nota: Este cálculo no aplica para el presente dimensionamiento de Baja Tensión (<=600V).")
+    pdf.ln(1)
+    
+    # 6.7 Selección del Conductor por Capacidad de Cortocircuito
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "6.7 Selección del Conductor por Capacidad de Cortocircuito.", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    texto_67_intro = f"Según el Estándar IEEE 242 – 2001 capítulo 9, la capacidad térmica del conductor es verificada. La corriente de cortocircuito máxima soportable se calcula con la constante térmica K=105 (Cobre), considerando un tiempo de despeje de falla de {st.session_state.t_despeje:.2f} seg. (usando 5 ciclos=0.083s como referencia IEEE 242, Tabla 9.3a)."
+    pdf.multi_cell(0, 5, texto_67_intro)
+
+    pdf.set_font("Arial", 'I', 10) 
+    pdf.cell(0, 5, u'  I_{cc} = (K \u22c5 A_{kcmil}) / \u221A(t)', 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    texto_67_res = f"El calibre {calibre_cc} tiene una Capacidad Térmica de {i_cc_max_cond/1000:.2f} kA. Este valor es comparado con la Capacidad de Interrupción del Tablero ({i_cc_tablero/1000:.1f} kA). Resultado: {res_cc}."
+    pdf.multi_cell(0, 5, texto_67_res)
+    pdf.ln(3)
+
+    # ----------------------------------------------------
+    # SECCIÓN 7: DIMENSIONAMIENTO
+    # ----------------------------------------------------
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, "7. DIMENSIONAMIENTO DE CANALIZACIONES Y PROTECCIÓN", 0, 1, 'L')
+    pdf.ln(1)
+
+    # 7.0 Tubería
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "7.0 Dimensionamiento de Tubería (Canalizaciones).", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    pdf.multi_cell(0, 5, "El dimensionamiento de tubos eléctricos se realiza de manera que los cables en su interior no excedan los porcentajes establecidos en la Tabla N° 1, Capítulo 9, CEN-2004.")
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "Tabla Nº 1. Porcentaje de Área de Tubería que puede ser llenada (CEN-2004)", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+    
+    # Simulación de tabla de ocupación (Texto fijo del CEN)
+    pdf.cell(30, 5, "Nº Cables", 1, 0, 'C')
+    pdf.cell(30, 5, "1", 1, 0, 'C')
+    pdf.cell(30, 5, "2", 1, 0, 'C')
+    pdf.cell(30, 5, ">2", 1, 1, 'C')
+    pdf.cell(30, 5, "Ocupación Máx.", 1, 0, 'L')
+    pdf.cell(30, 5, "53%", 1, 0, 'C')
+    pdf.cell(30, 5, "31%", 1, 0, 'C')
+    pdf.cell(30, 5, "40%", 1, 1, 'C')
+    pdf.ln(1)
+    
+    pdf.multi_cell(0, 5, f"Los cálculos están basados en la siguiente expresión (Área Total/Área Tubo): El Área Unitaria del Conductor utilizado es de {area_uni_mm2:.2f} mm². Tubería Requerida: {tubo_rec} ({st.session_state.mat_sel}). Ocupación Verificada: {porc_tub:.2f}% (Resultado: {res_t}).")
+    pdf.ln(1)
+    
+    # 7.1 Dimensionamiento de la Protección
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(0, 5, "7.1 Dimensionamiento de la Protección.", 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+
+    pdf.multi_cell(0, 5, "Para la selección de protecciones de equipos y alimentadores, en baja tensión, éstas serán del tipo interruptor termomagnético. Se utiliza la siguiente fórmula (Ver CEN, Art. 210-2):")
+    
+    pdf.set_font("Arial", 'I', 10) 
+    pdf.cell(0, 5, u'  I_{Protección} \u2265 I_{Carga} \u22c5 1.25', 0, 1, 'L')
+    pdf.set_font("Arial", size=10)
+
+    texto_71 = f"La corriente de diseño calculada es Ireq = {i_dis:.2f} A. El valor comercial superior inmediato se verifica según el CEN, Capítulo 2, Art. 240-6. El Interruptor termomagnético seleccionado es de {i_breaker_val:.1f} A."
+    pdf.multi_cell(0, 5, texto_71)
+
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- BARRA LATERAL (DESCARGA) ---
+st.sidebar.markdown("---")
+st.sidebar.header("📄 Reportes")
+
+if 'amp_real' in locals():
+    # Variables a pasar al PDF
+    I_carga = corriente_carga
+    amp_base_val = amp_base
+    i_breaker_val = breaker_ideal
+    R_v = db_cables[calibre_v]["R"]
+    X_v = db_cables[calibre_v]["X"]
+    fp_v = locals().get('fp_v', 0.90)
+    
+    # Asignación de variables de sesión para el PDF (inputs)
+    if 'current_date' not in st.session_state:
+         st.session_state.current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state.dist = locals().get('distancia', 20.0)
+    st.session_state.t_despeje = locals().get('tiempo_despeje', 0.5)
+    st.session_state.mat_sel = locals().get('material_sel', 'PVC40')
+    area_uni_final = locals().get('area_uni', db_cables[calibre_sel]["area"])
+    K_FINAL_REPORT = locals().get('K_FINAL', 5.0) 
+    
+    pdf_bytes = create_pdf(
+        carga_va, voltaje, sistema, calibre_sel, temp_factor_key, area_uni_final,
+        amp_real, i_diseno, 
+        v_drop, percent_drop, tubo_sel, porcentaje, tubo_recomendado, 
+        i_cc_max_permitida, i_cap_interrupcion, K_FINAL_REPORT,
+        calibre_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, 
+        num_conductores, calibre_sel
+    )
+    st.sidebar.download_button("📥 Descargar Memoria PDF", pdf_bytes, "protocolo_dimensionamiento_cen.pdf", "application/pdf")
