@@ -8,18 +8,16 @@ st.set_page_config(page_title="CEN-2004: Protocolo de Dimensionamiento Eléctric
 
 st.markdown("""
 <style>
+    /* Estilos del Dashboard */
     .header-style { font-size:18px; font-weight:bold; color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 5px; margin-bottom: 15px;}
-    
-    /* Cajas de Módulos (Estilo de la imagen) */
     .module-box { border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 2px 2px 8px rgba(0,0,0,0.05);}
     
-    /* Indicadores de APROBADO/FALLA */
+    /* Estilos de Resultados */
     .success-box-final { padding: 15px; border-radius: 8px; background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; font-weight: bold; text-align: center; margin-top: 15px; }
     .fail-box-final { padding: 15px; border-radius: 8px; background-color: #f8d7da; color: #842029; border: 1px solid #f5c6cb; font-weight: bold; text-align: center; margin-top: 15px; }
     .warning-box-final { padding: 15px; border-radius: 8px; background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; font-weight: bold; text-align: center; margin-top: 15px; }
     .recommendation-box { padding: 15px; border-radius: 8px; background-color: #f0f8ff; color: #004E8C; border: 1px solid #b3d9ff; font-weight: bold; }
     h1 { color: #1e40af; } 
-    
     [data-testid="stMetricValue"] { font-size: 20px; }
 </style>
 """, unsafe_allow_html=True)
@@ -101,7 +99,7 @@ with col1:
     
     # CÁLCULOS
     fc_temp = db_temp_factors[temp_factor_key]
-    fp = 0.90 # Se asume FP 0.90 de Tomacorriente
+    fp = 0.90 
     denom = voltaje if "Monofásico" in sistema else (voltaje * 1.732)
     corriente_carga = carga_va / denom
     
@@ -139,7 +137,6 @@ with col2:
     with col2b:
         corriente_calc = st.number_input("Corriente (A)", value=corriente_carga, key="i_calc") 
     
-    # Selector K (USANDO LOS VALORES CONFIRMADOS K=5 y K=10)
     st.caption("Factor K de su Metodología de Cálculo")
     k_mode_key = st.selectbox("Sistema de Fases y Factor K", 
                               ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
@@ -184,7 +181,7 @@ with col3:
     calibre_t = st.selectbox("Calibre Conductores", list(db_cables.keys()), index=1, key="t_cal")
     n_hilos = st.number_input("Total Hilos (Fases+Neutro+Tierra)", 1, 30, 4, key="n_hilos")
 
-    # 🟢 LÓGICA DE OVERRIDE DE ÁREA
+    # LÓGICA DE OVERRIDE DE ÁREA
     area_default = db_cables[calibre_t]["area"]
     override_area = st.checkbox("Usar Área Unitaria Personalizada", key="override_area")
     
@@ -277,7 +274,6 @@ with col4:
 # 5. GENERADOR PDF (En la Barra Lateral - Botón de Imprimir)
 # =========================================================
 def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min, k_factor_utilizado):
-    # Lógica PDF
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 12)
