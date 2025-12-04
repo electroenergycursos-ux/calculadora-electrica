@@ -240,7 +240,7 @@ with col4:
     
     st.caption("Parámetros de Falla")
     i_cap_interrupcion = st.number_input("Capacidad de Interrupción del Tablero (kA)", value=10.0, step=0.5, key="i_cap_int") * 1000 # Convertir a Amps
-    tiempo_despeje = st.number_input("Tiempo de Despeje (t, segundos)", value=0.5, step=0.01, key="t_despeje")
+    tiempo_despeje = st.number_input("Tiempo de Despeje (t, segundos)", value=0.5, key="t_despeje")
 
     
     K_CONST = 105.0 
@@ -267,7 +267,7 @@ with col4:
 # =========================================================
 # 5. GENERADOR PDF (Botón de Imprimir)
 # =========================================================
-def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, i_cc_max_cond, i_cc_tablero, k_factor_utilizado, cal_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, num_cond_val, calibre_t):
+def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, i_cc_max_cond, i_cc_tablero, k_factor_utilizado, cal_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, num_cond_val, calibre_t, distancia_metros, tiempo_despeje_seg, material_seleccionado):
     
     # Obtener valores detallados
     fc_temp_val = db_temp_factors[temp_key]
@@ -359,7 +359,7 @@ def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_
         pdf.cell(0, 5, u"Sistemas Trifásicos: \u0394V % = KVA \u22c5 L \u22c5 (r\u22c5cos\u03a6 + x\u22c5sen\u03a6) / (K \u22c5 kV\u00b2)", 0, 1, 'L')
         
     pdf.set_font("Arial", size=10)
-    pdf.multi_cell(0, 5, f"La metodología adoptada utiliza un factor K personalizado de {k_factor_utilizado:.1f} para sistemas {sist}. Para el calibre {cal_v} (R={R_v:.2f} \u03a9/Km, X={X_v:.3f} \u03a9/Km) la caída calculada es: {v_pct:.2f}%.")
+    pdf.multi_cell(0, 5, f"La metodología adoptada utiliza un factor K personalizado de {k_factor_utilizado:.1f} para sistemas {sist}. Para el calibre {cal_v} (R={R_v:.2f} \u03a9/Km, X={X_v:.3f} \u03a9/Km) y una longitud de {distancia_metros:.1f} m, la caída calculada es: {v_pct:.2f}%.")
     pdf.ln(1)
     
     # 6.6 Cálculo del Factor de Corrección por Temperatura de Alimentadores en Media Tensión (Solo estructura, sin PDVSA)
@@ -375,7 +375,7 @@ def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_
     pdf.cell(0, 5, "6.7 Selección del Conductor por Capacidad de Cortocircuito.", 0, 1, 'L')
     pdf.set_font("Arial", size=10)
     
-    texto_67_intro = f"Según el Estándar IEEE 242 – 2001 capítulo 9, la capacidad térmica del conductor es verificada. La corriente de cortocircuito máxima soportable se calcula con la constante térmica K=105 (Cobre), considerando un tiempo de despeje de falla de {st.session_state.t_despeje:.2f} seg. (usando 5 ciclos=0.083s como referencia IEEE 242, Tabla 9.3a)."
+    texto_67_intro = f"Según el Estándar IEEE 242 – 2001 capítulo 9, la capacidad térmica del conductor es verificada. La corriente de cortocircuito máxima soportable se calcula con la constante térmica K=105 (Cobre), considerando un tiempo de despeje de falla de {tiempo_despeje_seg:.2f} seg. (usando 5 ciclos=0.083s como referencia IEEE 242, Tabla 9.3a)."
     pdf.multi_cell(0, 5, texto_67_intro)
 
     pdf.set_font("Arial", 'I', 10) 
@@ -415,7 +415,7 @@ def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_
     pdf.cell(30, 5, "40%", 1, 1, 'C')
     pdf.ln(1)
     
-    pdf.multi_cell(0, 5, f"Los cálculos están basados en la siguiente expresión (Área Total/Área Tubo): El Área Unitaria del Conductor utilizado es de {area_uni_mm2:.2f} mm². Tubería Requerida: {tubo_rec} ({st.session_state.mat_sel}). Ocupación Verificada: {porc_tub:.2f}% (Resultado: {res_t}).")
+    pdf.multi_cell(0, 5, f"Los cálculos están basados en la siguiente expresión (Área Total/Área Tubo): El Área Unitaria del Conductor utilizado es de {area_uni_mm2:.2f} mm². Tubería Requerida: {tubo_rec} ({material_seleccionado}). Ocupación Verificada: {porc_tub:.2f}% (Resultado: {res_t}).")
     pdf.ln(1)
     
     # 7.1 Dimensionamiento de la Protección
@@ -447,15 +447,12 @@ if 'amp_real' in locals():
     X_v = db_cables[calibre_v]["X"]
     fp_v = locals().get('fp_v', 0.90)
     
-    # Asignación de variables de sesión para el PDF (inputs)
-    # FIX: Usamos st.session_state.get(key) para acceder de forma robusta
+    # Inicialización de fecha para el PDF
     if 'current_date' not in st.session_state:
          st.session_state.current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-         
-    # Usamos .get(key, default) para inicializar si Streamlit aún no lo ha hecho en el primer run.
-    st.session_state.dist = st.session_state.get('dist', 20.0) 
-    st.session_state.t_despeje = st.session_state.get('t_despeje', 0.5)
-    st.session_state.mat_sel = st.session_state.get('mat_sel', 'PVC40')
+
+    # Eliminamos las asignaciones a st.session_state que causaban el error
+    # y usamos las variables locales que sí están definidas: distancia, tiempo_despeje, material_sel
     
     area_uni_final = locals().get('area_uni', db_cables[calibre_sel]["area"])
     K_FINAL_REPORT = locals().get('K_FINAL', 5.0) 
@@ -466,6 +463,8 @@ if 'amp_real' in locals():
         v_drop, percent_drop, tubo_sel, porcentaje, tubo_recomendado, 
         i_cc_max_permitida, i_cap_interrupcion, K_FINAL_REPORT,
         calibre_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, 
-        num_conductores, calibre_sel
+        num_conductores, calibre_sel, 
+        # Nuevos argumentos pasados para el PDF (variables locales)
+        distancia, tiempo_despeje, material_sel
     )
     st.sidebar.download_button("📥 Descargar Memoria PDF", pdf_bytes, "protocolo_dimensionamiento_cen.pdf", "application/pdf")
