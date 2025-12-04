@@ -118,7 +118,7 @@ with col1:
     st.markdown("---")
     res_a1, res_a2 = st.columns(2)
     res_a1.metric("Corriente Diseño (Ireq)", f"{i_diseno:.2f} A")
-    res_a2.metric("Ampacidad Corregida", f"{amp_real:.2f} A") # LINEA CORREGIDA
+    res_a2.metric("Ampacidad Corregida", f"{amp_real:.2f} A")
     
     if amp_real >= i_diseno:
         st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable es apto. (Protección sugerida: {breaker_ideal}A)</div>', unsafe_allow_html=True)
@@ -448,11 +448,15 @@ if 'amp_real' in locals():
     fp_v = locals().get('fp_v', 0.90)
     
     # Asignación de variables de sesión para el PDF (inputs)
+    # FIX: Usamos st.session_state.get(key) para acceder de forma robusta
     if 'current_date' not in st.session_state:
          st.session_state.current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.session_state.dist = locals().get('distancia', 20.0)
-    st.session_state.t_despeje = locals().get('tiempo_despeje', 0.5)
-    st.session_state.mat_sel = locals().get('material_sel', 'PVC40')
+         
+    # Usamos .get(key, default) para inicializar si Streamlit aún no lo ha hecho en el primer run.
+    st.session_state.dist = st.session_state.get('dist', 20.0) 
+    st.session_state.t_despeje = st.session_state.get('t_despeje', 0.5)
+    st.session_state.mat_sel = st.session_state.get('mat_sel', 'PVC40')
+    
     area_uni_final = locals().get('area_uni', db_cables[calibre_sel]["area"])
     K_FINAL_REPORT = locals().get('K_FINAL', 5.0) 
     
