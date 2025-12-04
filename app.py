@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 from fpdf import FPDF
 import base64
+import datetime
 
 # --- 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="CEN-2004: Protocolo de Dimensionamiento Eléctrico", layout="wide", page_icon="⚡")
@@ -117,54 +118,4 @@ with col1:
     st.markdown("---")
     res_a1, res_a2 = st.columns(2)
     res_a1.metric("Corriente Diseño (Ireq)", f"{i_diseno:.2f} A")
-    res_a2.metric("Ampacidad Corregida", f"{amp_real:.2f} A")
-
-    if amp_real >= i_diseno:
-        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable es apto. (Protección sugerida: {breaker_ideal}A)</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div class="fail-box-final">❌ FALLA: El calibre es insuficiente.</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# =========================================================
-# MÓDULO 2: CAÍDA DE TENSIÓN (col2)
-# =========================================================
-with col2:
-    st.markdown('<div class="module-box">', unsafe_allow_html=True)
-    st.markdown('<p class="header-style">2. Caída de Tensión</p>', unsafe_allow_html=True)
-    
-    col2a, col2b = st.columns(2)
-    with col2a:
-        distancia = st.number_input("Longitud (metros)", value=20.0, key="dist")
-    with col2b:
-        corriente_calc = st.number_input("Corriente (A)", value=corriente_carga, key="i_calc") 
-    
-    st.caption("Factor K de su Metodología de Cálculo")
-    k_mode_key = st.selectbox("Sistema de Fases y Factor K", 
-                              ["Monofásico (K=5.0)", "Trifásico (K=10.0)"], 
-                              index=0 if "Monofásico" in sistema else 1,
-                              key="k_mode_final")
-    
-    K_FINAL = 5.0 if "Monofásico" in k_mode_key else 10.0
-    
-    fp_v = st.slider("Factor Potencia", 0.8, 1.0, 0.90, key="fp_v")
-    calibre_v = st.selectbox("Calibre para cálculo", list(db_cables.keys()), index=1, key="v_cal")
-    
-    # CÁLCULOS
-    datos = db_cables[calibre_v]
-    R, X = datos["R"], datos["X"]
-    theta = np.arccos(fp_v)
-    L_km = distancia / 1000.0
-    impedancia = (R * fp_v) + (X * np.sin(theta))
-    v_drop = K_FINAL * corriente_calc * L_km * impedancia
-    percent_drop = (v_drop / voltaje) * 100
-    
-    st.markdown("---")
-    st.subheader("📊 Resultados")
-    res_v1, res_v2 = st.columns(2)
-    res_v1.metric("Factor K Utilizado", f"{K_FINAL:.1f}")
-    res_v2.metric("% Caída de Tensión", f"{percent_drop:.2f} %")
-    
-    if percent_drop <= 3.0:
-         st.markdown(f'<div class="success-box-final">✅ CUMPLE: Caída inferior al 3%.</div>', unsafe_allow_html=True)
-    else:
-         st.markdown(f'<div class="fail-box-final">❌ NO CUMPLE: Ca
+    res_a2.metric("Ampacidad Corregida", f
