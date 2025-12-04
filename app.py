@@ -53,7 +53,7 @@ db_tuberias = {
     "1 1/2\"": {"PVC40": 1338, "EMT": 1391, "ARG": 1362}, "2\"":   {"PVC40": 2186, "EMT": 2275, "ARG": 2228},
 }
 
-# Inicialización de variables
+# Inicialización de variables (solo para scope inicial)
 carga_va, voltaje, sistema, calibre_sel, num_conductores, amp_real, i_diseno = 1260.0, 120, "Monofásico (1F)", "12 AWG", 3, 22.0, 13.12
 percent_drop = 1.83
 v_drop = 2.2
@@ -267,6 +267,7 @@ with col4:
 # =========================================================
 # 5. GENERADOR PDF (Botón de Imprimir)
 # =========================================================
+# Se pasan los valores de los widgets como argumentos directos de la función para mayor estabilidad.
 def create_pdf(carga, vol, sist, cal_amp, temp_key, area_uni_mm2, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, i_cc_max_cond, i_cc_tablero, k_factor_utilizado, cal_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, num_cond_val, calibre_t, distancia_metros, tiempo_despeje_seg, material_seleccionado):
     
     # Obtener valores detallados
@@ -450,9 +451,11 @@ if 'amp_real' in locals():
     # Inicialización de fecha para el PDF
     if 'current_date' not in st.session_state:
          st.session_state.current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Eliminamos las asignaciones a st.session_state que causaban el error
-    # y usamos las variables locales que sí están definidas: distancia, tiempo_despeje, material_sel
+    
+    # 🟢 FIX: Usar st.session_state directamente para valores de widgets
+    distancia_val = st.session_state.get('dist', 20.0) 
+    tiempo_despeje_val = st.session_state.get('t_despeje', 0.5)
+    material_sel_val = st.session_state.get('mat_sel', 'PVC40')
     
     area_uni_final = locals().get('area_uni', db_cables[calibre_sel]["area"])
     K_FINAL_REPORT = locals().get('K_FINAL', 5.0) 
@@ -464,7 +467,7 @@ if 'amp_real' in locals():
         i_cc_max_permitida, i_cap_interrupcion, K_FINAL_REPORT,
         calibre_v, R_v, X_v, fp_v, I_carga, amp_base_val, i_breaker_val, 
         num_conductores, calibre_sel, 
-        # Nuevos argumentos pasados para el PDF (variables locales)
-        distancia, tiempo_despeje, material_sel
+        # Argumentos finales pasados a la función PDF
+        distancia_val, tiempo_despeje_val, material_sel_val
     )
     st.sidebar.download_button("📥 Descargar Memoria PDF", pdf_bytes, "protocolo_dimensionamiento_cen.pdf", "application/pdf")
