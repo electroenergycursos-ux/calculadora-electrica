@@ -61,6 +61,7 @@ tubo_recomendado = "1\""
 area_kcmil_min = 6.53 
 calibre_min_cc = "12 AWG"
 K_FINAL = 5.0 
+i_cc_max_permitida = 0.0 # Nueva variable
 
 # --- INTERFAZ DE ENTRADA (Módulo de Configuración Común) ---
 st.header("1. Configuración del Sistema")
@@ -129,7 +130,7 @@ with col1:
 # =========================================================
 with col2:
     st.markdown('<div class="module-box">', unsafe_allow_html=True)
-    st.markdown('<p class="header-style">2. Caída de Tensión (CEN 210.19)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">2. Caída de Tensión</p>', unsafe_allow_html=True)
     
     col2a, col2b = st.columns(2)
     with col2a:
@@ -174,7 +175,7 @@ with col2:
 # =========================================================
 with col3:
     st.markdown('<div class="module-box">', unsafe_allow_html=True)
-    st.markdown('<p class="header-style">3. Canalizaciones (Ocupación CEN Cap. 9)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">3. Canalizaciones</p>', unsafe_allow_html=True)
     
     st.subheader("Configuración")
     material_sel = st.selectbox("Material de Tubería", ["PVC40", "EMT", "ARG"], key="mat_sel")
@@ -190,7 +191,7 @@ with col3:
             f"Área Unitaria Custom (mm²) para {calibre_t}", 
             value=area_default, 
             key="custom_area_uni",
-            help="Introduzca el valor de mm² que usa en su Memoria de Cálculo."
+            help="Introduzca el valor de mm² que usa en su Memoria de Cálculo para igualar el % de ocupación."
         )
     else:
         area_uni = area_default
@@ -231,49 +232,41 @@ with col3:
 # =========================================================
 with col4:
     st.markdown('<div class="module-box">', unsafe_allow_html=True)
-    st.markdown('<p class="header-style">4. Cortocircuito (IEEE 242)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="header-style">4. Cortocircuito (Cálculo Automático Térmico)</p>', unsafe_allow_html=True)
     
-    st.subheader("Parámetros de Falla")
-    i_falla = st.number_input("Corriente de Falla (Icc, Amps)", value=10000.0, step=500.0, key="i_falla")
+    st.subheader("Verificación Térmica (Conductor)")
+    calibre_cc = st.selectbox("Calibre a Verificar", list(db_cables.keys()), index=1, key="cc_cal_final")
+    
+    st.caption("Parámetros de Falla")
+    i_cap_interrupcion = st.number_input("Capacidad de Interrupción del Tablero (kA)", value=10.0, step=0.5, key="i_cap_int") * 1000 # Convertir a Amps
     tiempo_despeje = st.number_input("Tiempo de Despeje (t, segundos)", value=0.5, step=0.01, key="t_despeje")
 
-    st.subheader("Verificación Térmica")
-    calibre_cc = st.selectbox("Calibre a Verificar", list(db_cables.keys()), index=1, key="cc_cal")
     
     K_CONST = 105.0 
     area_real_kcmil = db_cables[calibre_cc]['kcmil']
-    st.caption(f"Área Real ({calibre_cc}): {area_real_kcmil:.2f} kcmil (K=105.0)")
-
-
-    # Cálculo de Cortocircuito
-    if i_falla > 0 and tiempo_despeje > 0:
-        area_kcmil_min = i_falla * np.sqrt(tiempo_despeje) / K_CONST
-        
-        calibre_min_cc = "N/A"
-        for cal, data in db_cables.items():
-            if data['kcmil'] >= area_kcmil_min:
-                calibre_min_cc = cal
-                break
+    
+    # 🟢 CÁLCULO AUTOMÁTICO DE Icc MÁXIMA PERMITIDA
+    if area_real_kcmil > 0 and tiempo_despeje > 0:
+        i_cc_max_permitida = (K_CONST * area_real_kcmil) / np.sqrt(tiempo_despeje)
     else:
-        area_kcmil_min = 0
-        calibre_min_cc = "N/A"
-
+        i_cc_max_permitida = 0.0
 
     st.markdown("---")
+    st.subheader("📊 Resultados de la Capacidad")
     m_cc1, m_cc2 = st.columns(2)
-    m_cc1.metric("Área Mínima Requerida", f"{area_kcmil_min:.2f} kcmil")
-    m_cc2.metric("Calibre Mínimo", calibre_min_cc)
+    m_cc1.metric("Icc Máx. Permisible (Conductor)", f"{i_cc_max_permitida/1000:.2f} kA")
+    m_cc2.metric("Icc del Tablero (Ref.)", f"{i_cap_interrupcion/1000:.1f} kA")
 
-    if area_real_kcmil >= area_kcmil_min:
-        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable es seguro ante falla térmica.</div>', unsafe_allow_html=True)
+    if i_cc_max_permitida >= i_cap_interrupcion:
+        st.markdown(f'<div class="success-box-final">✅ CUMPLE: Cable soporta el nivel de cortocircuito del tablero.</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="fail-box-final">❌ FALLA TÉRMICA: Calibre insuficiente.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="fail-box-final">❌ FALLA TÉRMICA: El cable podría fundirse ante la falla máxima del tablero.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================================================
-# 5. GENERADOR PDF (En la Barra Lateral - Botón de Imprimir)
+# 5. GENERADOR PDF (Botón de Imprimir)
 # =========================================================
-def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, cc_req, cc_cal_min, k_factor_utilizado):
+def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec, i_cc_max_cond, i_cc_tablero, k_factor_utilizado):
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 12)
@@ -302,8 +295,8 @@ def create_pdf(carga, vol, cal, amp, i_dis, v_dp, v_pct, tub, porc_tub, tubo_rec
     res_t = "CUMPLE" if porc_tub <= 40 else "FALLA"
     pdf.cell(0, 7, f"3. Tuberia ({tub}): Ocupacion {porc_tub:.2f}% (MINIMO REQ: {tubo_rec}) -> {res_t}", ln=True)
     
-    res_cc = "CUMPLE" if db_cables[cal].get('kcmil', 0) >= cc_req else "FALLA"
-    pdf.cell(0, 7, f"4. Cortocircuito: Area Req {cc_req:.2f} kcmil (MINIMO {cc_cal_min}) -> {res_cc}", ln=True)
+    res_cc = "CUMPLE" if i_cc_max_cond >= i_cc_tablero else "FALLA"
+    pdf.cell(0, 7, f"4. Cortocircuito: Cap. Témica (Cond.) {i_cc_max_cond/1000:.2f} kA (Cap. Tablero {i_cc_tablero/1000:.1f} kA) -> {res_cc}", ln=True)
 
     return pdf.output(dest='S').encode('latin-1')
 
@@ -317,6 +310,6 @@ if 'amp_real' in locals():
     pdf_bytes = create_pdf(
         carga_va, voltaje, calibre_sel, amp_real, i_diseno, 
         v_drop, percent_drop, tubo_sel, porcentaje, tubo_recomendado, 
-        area_kcmil_min, calibre_min_cc, K_FINAL_REPORT
+        i_cc_max_permitida, i_cap_interrupcion, K_FINAL_REPORT
     )
     st.sidebar.download_button("📥 Descargar Memoria PDF", pdf_bytes, "protocolo_dimensionamiento_cen.pdf", "application/pdf")
